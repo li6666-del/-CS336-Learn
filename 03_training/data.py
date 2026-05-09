@@ -26,7 +26,7 @@ def get_batch(
     offsets = torch.arange(context_length, device=data.device)
     batch_indices = start_indices[:, None] + offsets[None, :]
 
-    x = data[batch_indices]
-    y = data[batch_indices + 1]
+    x = data[batch_indices].long()
+    y = data[batch_indices + 1].long()
 
     return x.to(device), y.to(device)
