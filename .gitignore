@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+checkpoints/
+data/*.pt
+data/*.tokens.pt
+data/TinyStoriesV2-GPT4-train.txt
+data/TinyStoriesV2-GPT4-valid.txt
+
+01_bpe/vocab.bin
+01_bpe/merges.bin
