@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top_k", type=int, default=50)
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--device", type=str, default="auto")
+    parser.add_argument(
+        "--no_stop_at_eot",
+        action="store_true",
+        help="Keep generating after <|endoftext|> instead of stopping.",
+    )
 
     return parser.parse_args()
 
@@ -70,6 +75,7 @@ def generate(
     temperature: float,
     top_k: int | None,
     device: torch.device,
+    stop_token_id: int | None = None,
 ) -> list[int]:
     if temperature <= 0:
         raise ValueError(f"temperature must be positive, got {temperature}")
@@ -94,6 +100,9 @@ def generate(
         next_id = torch.multinomial(probs, num_samples=1)
         ids = torch.cat((ids, next_id), dim=1)
 
+        if stop_token_id is not None and next_id.item() == stop_token_id:
+            break
+
     return ids[0].tolist()
 
 
@@ -114,6 +123,10 @@ def main() -> None:
     model = load_model(args.checkpoint_path, device)
 
     prompt_ids = tokenizer.encode(args.prompt)
+    stop_token_id = None
+    if not args.no_stop_at_eot:
+        stop_token_id = tokenizer.token_to_id.get(b"<|endoftext|>")
+
     output_ids = generate(
         model=model,
         token_ids=prompt_ids,
@@ -121,6 +134,7 @@ def main() -> None:
         temperature=args.temperature,
         top_k=args.top_k,
         device=device,
+        stop_token_id=stop_token_id,
     )
 
     print(tokenizer.decode(output_ids))
