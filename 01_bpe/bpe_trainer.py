@@ -1,11 +1,24 @@
+import argparse
+import pickle
+from pathlib import Path
+
 import regex as re
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 
-def train_bpe(input_path, vocab_size, special_tokens):
-    with open(input_path, "r", encoding="UTF-8") as f:
-        text = f.read()
+def read_text(input_path: str | Path, max_bytes: int | None = None) -> str:
+    if max_bytes is None:
+        return Path(input_path).read_text(encoding="utf-8")
+
+    with open(input_path, "rb") as f:
+        raw_bytes = f.read(max_bytes)
+
+    return raw_bytes.decode("utf-8", errors="ignore")
+
+
+def train_bpe(input_path, vocab_size, special_tokens, max_bytes=None):
+    text = read_text(input_path, max_bytes=max_bytes)
 
     special_pattern = "|".join(re.escape(t) for t in special_tokens)
     pattern = f"({special_pattern})" if special_pattern else None
@@ -71,23 +84,61 @@ def train_bpe(input_path, vocab_size, special_tokens):
     return vocab, merges
 
 
-if __name__ == "__main__":
-    input_path = "D:/CS336/CS336-Learn/data/TinyStoriesV2-GPT4-valid.txt"
-    vocab_size = 10000
-    special_tokens = ["<|endoftext|>"]
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train a byte-level BPE tokenizer.")
 
-    vocab, merges = train_bpe(input_path, vocab_size, special_tokens)
+    parser.add_argument(
+        "--input_path",
+        type=Path,
+        default=Path("data/TinyStoriesV2-GPT4-valid.txt"),
+    )
+    parser.add_argument("--vocab_size", type=int, default=10000)
+    parser.add_argument(
+        "--special_tokens",
+        nargs="*",
+        default=["<|endoftext|>"],
+    )
+    parser.add_argument(
+        "--max_bytes",
+        type=int,
+        default=None,
+        help="Only read this many bytes from input_path. Useful for large corpora.",
+    )
+    parser.add_argument(
+        "--vocab_path",
+        type=Path,
+        default=Path("01_bpe/vocab.bin"),
+    )
+    parser.add_argument(
+        "--merges_path",
+        type=Path,
+        default=Path("01_bpe/merges.bin"),
+    )
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    vocab, merges = train_bpe(
+        input_path=args.input_path,
+        vocab_size=args.vocab_size,
+        special_tokens=args.special_tokens,
+        max_bytes=args.max_bytes,
+    )
 
     vocab_list = [None] * len(vocab)
     for idx, token_bytes in vocab.items():
         vocab_list[idx] = token_bytes
 
-    with open("D:/CS336/CS336-Learn/01_bpe/vocab.bin", "wb") as f:
-        import pickle
+    args.vocab_path.parent.mkdir(parents=True, exist_ok=True)
+    args.merges_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(args.vocab_path, "wb") as f:
         pickle.dump(vocab_list, f)
 
-    with open("D:/CS336/CS336-Learn/01_bpe/merges.bin", "wb") as f:
-        import pickle
+    with open(args.merges_path, "wb") as f:
         pickle.dump(merges, f)
 
     print(f"vocab size: {len(vocab)}, merges count: {len(merges)}")
